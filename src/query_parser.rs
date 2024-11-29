@@ -34,6 +34,9 @@ pub enum Query {
     Ttl {
         key: String,
     },
+    Persist {
+        key: String,
+    },
     Info,
     FlushAll,
     DbSize,
@@ -157,6 +160,13 @@ fn get_api(path: &str) -> Result<Query, DeserializationError> {
     if let Some(ttl) = extract_wildcards(path, "/TTL/*") {
         return match ttl.get(0) {
             Some(el) => Ok(Query::Ttl { key: el.clone() }),
+            None => Err(DeserializationError::UnparsableQuery),
+        };
+    }
+
+    if let Some(ttl) = extract_wildcards(path, "/PERSIST/*") {
+        return match ttl.get(0) {
+            Some(el) => Ok(Query::Persist { key: el.clone() }),
             None => Err(DeserializationError::UnparsableQuery),
         };
     }

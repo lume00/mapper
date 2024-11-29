@@ -6,7 +6,6 @@ mod wrapped_record;
 mod http_handler;
 mod query_parser;
 mod errors;
-mod record_handle;
 mod query_handler;
 
 use engine::{Mapper, MapperBuilder};
@@ -15,7 +14,7 @@ fn main() {
     Mapper::new(MapperBuilder {
         password: None,
         address: None,
-        async_loggin: Some(true),
+        async_loggin: Some(false),
         logging_level: Some("debug")
     })
     .unwrap()

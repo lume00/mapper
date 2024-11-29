@@ -25,10 +25,12 @@ impl Record {
         }
     }
 
-    pub fn update_ttl(&mut self, ttl: Duration) {
-        if let Some(policy) = &mut self.ttl_policy {
-            policy.ttl = ttl;
-        }
+    pub fn update_ttl_policy(&mut self, ttl: Duration) {
+        self.ttl_policy = Some(TTLPolicy::new(ttl));
+    }
+
+    pub fn remove_ttl_policy(&mut self) {
+        self.ttl_policy = None;
     }
 }
 

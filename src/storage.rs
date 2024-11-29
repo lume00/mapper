@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc,
+    sync::Arc, time::Duration,
 };
 
 use smol::lock::RwLock;
@@ -9,7 +9,6 @@ use smol::lock::RwLock;
 use crate::{
     errors::TransactionError,
     record::Record,
-    record_handle::RecordHandle,
     wrapped_record::{Interruption, WrapperRecord},
 };
 
@@ -58,25 +57,19 @@ impl Storage {
         }
     }
 
-    pub async fn update_and_get_record(
+    pub async fn update_ttl(
         &self,
         key: &str,
-        handled_record: RecordHandle,
-    ) -> Result<Record, TransactionError> {
+        new_ttl: Option<Duration>,
+    ) -> Result<(), TransactionError> {
         match self.0.get(self.hash_key(key)) {
             Some(shard) => {
                 let mut record_lock = shard.write().await;
                 match record_lock.get_mut(key) {
-                    Some(record) => {
-                        if let Some(ttl) = handled_record.new_ttl {
-                            record.record.update_ttl(ttl);
+                    Some(wrecord) => {
+                        wrecord.update_ttl_policy(new_ttl);
 
-                            if let Some(detatched_task_ch) = &record.detatched_task_ch {
-                                let _ = detatched_task_ch.send(Interruption::TTLChanged);
-                            }
-                        }
-
-                        Ok(record.record.clone())
+                        Ok(())
                     }
                     None => Err(TransactionError::RecordNotFound),
                 }

@@ -34,9 +34,9 @@ pub(crate) async fn handle_query(query: Query, storage: Storage) -> Result<Strin
         },
         Query::Expire { key, ttl } => {
             match storage
-                .update_and_get_record(
+                .update_ttl(
                     &key,
-                    crate::record_handle::RecordHandle { new_ttl: Some(ttl) },
+                    Some(ttl),
                 )
                 .await
             {
@@ -51,12 +51,17 @@ pub(crate) async fn handle_query(query: Query, storage: Storage) -> Result<Strin
             },
             Err(err) => Err(errors::Errors::TransactionError(err)),
         },
-        Query::Info => Ok("Mapper".to_string()),
+        Query::Info => Ok("mapper".to_string()),
         Query::FlushAll => {
             storage.flush_all().await;
             Ok("".to_string())
         }
         Query::DbSize => Ok(storage.db_size().await.to_string()),
-        Query::Ping => Ok("Pong".to_string()),
+        Query::Ping => Ok("pong".to_string()),
+        Query::Persist { key } => {
+            storage.update_ttl(&key, None).await;
+
+            Ok("".to_string())
+        },
     }
 }

@@ -11,7 +11,7 @@ use smol::{
 };
 
 use crate::{
-    record::Record,
+    record::{Record, TTLPolicy},
     storage::Storage,
 };
 
@@ -62,6 +62,28 @@ impl WrapperRecord {
                 detatched_task_ch: None,
             },
         }
+    }
+
+    
+
+    pub fn update_ttl_policy(&mut self, maybe_new_ttl: Option<Duration>) {
+        match maybe_new_ttl {
+            Some(new_ttl) => {
+                
+
+                if let Some(detatched_task_ch) = &self.detatched_task_ch {
+                    let _ = detatched_task_ch.send(Interruption::TTLChanged);
+                }
+            },
+            None => {
+                //cancelling previous ttl
+                if let Some(detatched_task_ch) = &self.detatched_task_ch {
+                    let _ = detatched_task_ch.send(Interruption::Cancelled);
+                }
+
+                self.record.remove_ttl_policy();
+            },
+        };
     }
 }
 
