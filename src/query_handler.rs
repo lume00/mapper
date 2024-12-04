@@ -2,17 +2,17 @@ use log::error;
 
 use crate::{errors::{self}, query_parser::Query, record::Record, storage::Storage};
 
-pub(crate) async fn handle_query(query: Query, storage: Storage) -> Result<String, crate::errors::Errors> {
+pub(crate) async fn handle_query(query: Query, storage: Storage) -> Result<String, errors::Errors> {
     match query {
         Query::Get { key } => match storage.get_record(&key).await {
             Ok(rec) => match String::from_utf8(rec.data) {
                 Ok(rec) => Ok(rec),
                 Err(err) => {
                     error!("{}", err);
-                    Err(crate::errors::Errors::DeserializationError(errors::DeserializationError::UnparsableBytes))
+                    Err(errors::Errors::DeserializationError(errors::DeserializationError::UnparsableBytes))
                 },
             },
-            Err(err) => Err(crate::errors::Errors::TransactionError(err)),
+            Err(err) => Err(errors::Errors::TransactionError(err)),
         },
         Query::Set { key, data } => match storage.set_record(&key, Record::new(data, None)).await {
             Ok(_) => Ok("".to_string()),
@@ -59,9 +59,10 @@ pub(crate) async fn handle_query(query: Query, storage: Storage) -> Result<Strin
         Query::DbSize => Ok(storage.db_size().await.to_string()),
         Query::Ping => Ok("pong".to_string()),
         Query::Persist { key } => {
-            storage.update_ttl(&key, None).await;
-
-            Ok("".to_string())
+            match storage.update_ttl(&key, None).await {
+                Ok(_) => Ok("".to_string()),
+                Err(err) => Err(errors::Errors::TransactionError(err)),
+            }
         },
     }
 }

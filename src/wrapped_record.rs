@@ -1,7 +1,4 @@
-use std::{
-    fmt::Display,
-    time::Duration,
-};
+use std::{fmt::Display, time::Duration};
 
 use log::debug;
 use smol::{
@@ -11,27 +8,21 @@ use smol::{
 };
 
 use crate::{
-    record::{Record, TTLPolicy},
+    record::Record,
     storage::Storage,
 };
 
 #[derive(Debug, Clone)]
-pub struct WrapperRecord {
-    pub record: Record,
-    pub detatched_task_ch: Option<Sender<Interruption>>,
-}
-
-#[derive(Debug)]
-pub enum Interruption {
-    Cancelled,
-    TTLChanged,
+pub struct WrappedRecord {
+    pub inner_record: Record,
+    pub detatched_task_ch: Option<Sender<RacingResult>>,
 }
 
 #[derive(Debug)]
 pub enum RacingResult {
     Timout,
     Closed,
-    Custom(Interruption),
+    Cancelled,
 }
 
 impl Display for RacingResult {
@@ -40,58 +31,63 @@ impl Display for RacingResult {
     }
 }
 
-impl WrapperRecord {
-    pub fn new(db: Storage, shard_index: usize, key: &str, record: Record) -> WrapperRecord {
+impl WrappedRecord {
+    pub fn new(db: Storage, shard_index: usize, key: &str, record: Record) -> WrappedRecord {
         match &record.ttl_policy {
             Some(ttl_policy) => {
                 let key: String = key.to_string();
                 let ttl = ttl_policy.ttl.clone();
+                let tc_s = create_ttl_channel(db, shard_index, key, ttl);
 
-                let (tc_s, tc_r) = smol::channel::bounded::<Interruption>(1);
-
-                let ttl_check = ttl_check_fn(db, shard_index, key, tc_r, ttl);
-                smol::spawn(ttl_check).detach();
-
-                WrapperRecord {
-                    record,
+                WrappedRecord {
+                    inner_record: record,
                     detatched_task_ch: Some(tc_s),
                 }
             }
-            None => WrapperRecord {
-                record,
+            None => WrappedRecord {
+                inner_record: record,
                 detatched_task_ch: None,
             },
         }
     }
 
-    
-
-    pub fn update_ttl_policy(&mut self, maybe_new_ttl: Option<Duration>) {
+    pub fn update_ttl_policy(&mut self, maybe_new_ttl: Option<Duration>, db: Storage, shard_index: usize, key: String) {
         match maybe_new_ttl {
             Some(new_ttl) => {
-                
-
                 if let Some(detatched_task_ch) = &self.detatched_task_ch {
-                    let _ = detatched_task_ch.send(Interruption::TTLChanged);
+                    let _ = detatched_task_ch.send(RacingResult::Cancelled);
                 }
-            },
+                //updating ttl
+                self.inner_record.update_ttl_policy(new_ttl);
+
+                //creating new ttl channel
+                self.detatched_task_ch = Some(create_ttl_channel(db, shard_index, key, new_ttl));
+            }
             None => {
                 //cancelling previous ttl
                 if let Some(detatched_task_ch) = &self.detatched_task_ch {
-                    let _ = detatched_task_ch.send(Interruption::Cancelled);
+                    let _ = detatched_task_ch.send(RacingResult::Cancelled);
                 }
 
-                self.record.remove_ttl_policy();
-            },
+                self.inner_record.remove_ttl_policy();
+            }
         };
     }
+}
+
+fn create_ttl_channel(db: Storage, shard_index: usize, key: String, ttl: Duration) -> Sender<RacingResult> {
+    let (tc_s, tc_r) = smol::channel::bounded::<RacingResult>(1);
+
+    let ttl_check = ttl_check_fn(db, shard_index, key, tc_r, ttl);
+    smol::spawn(ttl_check).detach();
+    tc_s
 }
 
 async fn ttl_check_fn(
     storage: Storage,
     shard_index: usize,
     key: String,
-    detatched_task_ch: Receiver<Interruption>,
+    detatched_task_ch: Receiver<RacingResult>,
     ttl: Duration,
 ) {
     // waiting for 3 futures, the first that completes win:
@@ -101,8 +97,7 @@ async fn ttl_check_fn(
     let racing_result = race(
         async {
             match detatched_task_ch.recv().await {
-                Ok(Interruption::Cancelled) => RacingResult::Custom(Interruption::Cancelled),
-                Ok(Interruption::TTLChanged) => RacingResult::Custom(Interruption::TTLChanged),
+                Ok(cancelled) => cancelled,
                 Err(_) => RacingResult::Closed,
             }
         },
@@ -118,33 +113,16 @@ async fn ttl_check_fn(
             // timer has timed out
             RacingResult::Timout => {
                 let mut locked_table = shard.write().await;
-                if let Some(record) = locked_table.get(&key) {
-                    if let Some(_) = &record.record.ttl_policy {                        
+                if let Some(wrecord) = locked_table.get(&key) {
+                    if let Some(_) = &wrecord.inner_record.ttl_policy {
                         debug!("timout occured, ttl is expired, removing key {}", key);
                         let _prev = locked_table.remove(&key);
                     }
                 }
-                //dropping table write lock
-            }
-            // ttl has changed need to spawn new task and cancel current running
-            RacingResult::Custom(Interruption::TTLChanged) => {
-                if let Some(record) = shard.read().await.get(&key) {
-                    if let Some(_) = &record.record.ttl_policy {
-                        Box::pin(ttl_check_fn(
-                            storage.clone(),
-                            shard_index,
-                            key,
-                            detatched_task_ch,
-                            ttl,
-                        ))
-                        .await;
-                    }
-                }
             }
             // channel is cancelled
-            RacingResult::Custom(Interruption::Cancelled) => {
-                debug!("channel cancelled for key {}", key)
-            }
+            RacingResult::Cancelled => debug!("channel cancelled for key {}", key),
+            //channel is closed due to record drop
             RacingResult::Closed => debug!("channel closed for key {}", key),
         }
     }

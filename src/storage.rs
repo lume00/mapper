@@ -4,16 +4,17 @@ use std::{
     sync::Arc, time::Duration,
 };
 
+use crossbeam_utils::CachePadded;
 use smol::lock::RwLock;
 
 use crate::{
     errors::TransactionError,
     record::Record,
-    wrapped_record::{Interruption, WrapperRecord},
+    wrapped_record::{RacingResult, WrappedRecord},
 };
 
 #[derive(Debug, Clone)]
-pub struct Storage(pub(crate) Arc<Vec<RwLock<HashMap<String, WrapperRecord>>>>);
+pub struct Storage(pub(crate) Arc<Vec<CachePadded<RwLock<HashMap<String, WrappedRecord>>>>>);
 
 impl Default for Storage {
     fn default() -> Self {
@@ -50,7 +51,7 @@ impl Storage {
     pub async fn get_record(&self, key: &str) -> Result<Record, TransactionError> {
         match self.0.get(self.hash_key(key)) {
             Some(shard) => match shard.read().await.get(key) {
-                Some(data) => Ok(data.record.clone()),
+                Some(data) => Ok(data.inner_record.clone()),
                 None => Err(TransactionError::RecordNotFound),
             },
             None => Err(TransactionError::ShardNotFound),
@@ -62,12 +63,13 @@ impl Storage {
         key: &str,
         new_ttl: Option<Duration>,
     ) -> Result<(), TransactionError> {
-        match self.0.get(self.hash_key(key)) {
+        let hash_index = self.hash_key(key);
+        match self.0.get(hash_index) {
             Some(shard) => {
                 let mut record_lock = shard.write().await;
                 match record_lock.get_mut(key) {
                     Some(wrecord) => {
-                        wrecord.update_ttl_policy(new_ttl);
+                        wrecord.update_ttl_policy(new_ttl, self.clone(), hash_index, key.to_owned());
 
                         Ok(())
                     }
@@ -89,12 +91,12 @@ impl Storage {
                 let mut locked_db = shard.write().await;
                 let maybe_prev = locked_db.insert(
                     key.to_owned(),
-                    WrapperRecord::new(self.clone(), shard_index, key, client_record),
+                    WrappedRecord::new(self.clone(), shard_index, key, client_record),
                 );
 
                 if let Some(prev) = maybe_prev {
                     if let Some(timer) = prev.detatched_task_ch {
-                        let _ = timer.send(Interruption::Cancelled);
+                        let _ = timer.send(RacingResult::Cancelled);
                     }
                 }
                 return Ok(());
@@ -109,7 +111,7 @@ impl Storage {
                 let maybe_prev = shard.write().await.remove(key);
                 if let Some(prev) = maybe_prev {
                     if let Some(timer) = prev.detatched_task_ch {
-                        let _ = timer.send(Interruption::Cancelled);
+                        let _ = timer.send(RacingResult::Cancelled);
                     }
                 }
 
