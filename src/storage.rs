@@ -51,7 +51,7 @@ impl Storage {
     pub async fn get_record(&self, key: &str) -> Result<Record, TransactionError> {
         match self.0.get(self.hash_key(key)) {
             Some(shard) => match shard.read().await.get(key) {
-                Some(data) => Ok(data.inner_record.clone()),
+                Some(data) => Ok(data.record.clone()),
                 None => Err(TransactionError::RecordNotFound),
             },
             None => Err(TransactionError::ShardNotFound),

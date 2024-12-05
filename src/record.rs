@@ -9,7 +9,7 @@ pub struct Record {
 #[derive(Debug, Clone)]
 pub struct TTLPolicy {
     pub ttl: Duration,
-    pub creation: Instant,
+    pub last_policy_update: Instant,
 }
 
 impl Record {
@@ -33,12 +33,7 @@ impl Record {
     /// This function ensures that the TTL policy is always set to a valid state, 
     /// either by updating an existing policy or creating a new one.
     pub fn update_ttl_policy(&mut self, ttl: Duration) {
-        match &mut self.ttl_policy {
-            Some(ttl_policy) => {
-                ttl_policy.ttl = ttl
-            },
-            None => *&mut self.ttl_policy = Some(TTLPolicy::new(ttl)),
-        }
+        self.ttl_policy = Some(TTLPolicy::new(ttl))
     }
 
     pub fn remove_ttl_policy(&mut self) {
@@ -50,17 +45,17 @@ impl TTLPolicy {
     pub fn new(ttl: Duration) -> Self {
         Self {
             ttl,
-            creation: Instant::now(),
+            last_policy_update: Instant::now(),
         }
     }
 
     fn is_expired(&self) -> bool {
-        self.creation.elapsed() < self.ttl
+        self.last_policy_update.elapsed() > self.ttl
     }
 
     pub fn expire_in(&self) -> Duration {
-        if self.is_expired() {
-            self.ttl - self.creation.elapsed()
+        if !self.is_expired() {
+            self.ttl - self.last_policy_update.elapsed()
         } else {
             Duration::ZERO
         }

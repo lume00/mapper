@@ -14,7 +14,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct WrappedRecord {
-    pub inner_record: Record,
+    pub record: Record,
     pub detatched_task_ch: Option<Sender<RacingResult>>,
 }
 
@@ -40,12 +40,12 @@ impl WrappedRecord {
                 let tc_s = create_ttl_channel(db, shard_index, key, ttl);
 
                 WrappedRecord {
-                    inner_record: record,
+                    record,
                     detatched_task_ch: Some(tc_s),
                 }
             }
             None => WrappedRecord {
-                inner_record: record,
+                record,
                 detatched_task_ch: None,
             },
         }
@@ -58,7 +58,7 @@ impl WrappedRecord {
                     let _ = detatched_task_ch.send(RacingResult::Cancelled);
                 }
                 //updating ttl
-                self.inner_record.update_ttl_policy(new_ttl);
+                self.record.update_ttl_policy(new_ttl);
 
                 //creating new ttl channel
                 self.detatched_task_ch = Some(create_ttl_channel(db, shard_index, key, new_ttl));
@@ -69,7 +69,7 @@ impl WrappedRecord {
                     let _ = detatched_task_ch.send(RacingResult::Cancelled);
                 }
 
-                self.inner_record.remove_ttl_policy();
+                self.record.remove_ttl_policy();
             }
         };
     }
@@ -92,8 +92,7 @@ async fn ttl_check_fn(
 ) {
     // waiting for 3 futures, the first that completes win:
     // 1) if timer is cancelled or closed
-    // 2) if ttl has changed
-    // 3) if timer has timed out
+    // 2) if timer has timed out
     let racing_result = race(
         async {
             match detatched_task_ch.recv().await {
@@ -114,7 +113,7 @@ async fn ttl_check_fn(
             RacingResult::Timout => {
                 let mut locked_table = shard.write().await;
                 if let Some(wrecord) = locked_table.get(&key) {
-                    if let Some(_) = &wrecord.inner_record.ttl_policy {
+                    if let Some(_) = &wrecord.record.ttl_policy {
                         debug!("timout occured, ttl is expired, removing key {}", key);
                         let _prev = locked_table.remove(&key);
                     }
