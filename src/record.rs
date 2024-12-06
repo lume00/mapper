@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant};
 
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
     pub data: Vec<u8>,
     pub ttl_policy: Option<TTLPolicy>,
@@ -59,5 +61,49 @@ impl TTLPolicy {
         } else {
             Duration::ZERO
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct SerializableTTLPolicy {
+    ttl_secs: u64,
+    last_policy_update: u64,
+}
+
+impl From<TTLPolicy> for SerializableTTLPolicy {
+    fn from(policy: TTLPolicy) -> Self {
+        SerializableTTLPolicy {
+            ttl_secs: policy.ttl.as_secs(),
+            last_policy_update: policy.last_policy_update.elapsed().as_secs(),
+        }
+    }
+}
+
+impl From<SerializableTTLPolicy> for TTLPolicy {
+    fn from(serializable: SerializableTTLPolicy) -> Self {
+        TTLPolicy {
+            ttl: Duration::from_secs(serializable.ttl_secs),
+            last_policy_update: Instant::now() - Duration::from_secs(serializable.last_policy_update),
+        }
+    }
+}
+
+impl Serialize for TTLPolicy {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let serializable = SerializableTTLPolicy::from(self.clone());
+        serializable.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for TTLPolicy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let serializable = SerializableTTLPolicy::deserialize(deserializer)?;
+        Ok(TTLPolicy::from(serializable))
     }
 }

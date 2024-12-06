@@ -1,13 +1,13 @@
 use std::{
     error, io,
-    net::{SocketAddr, TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream}, time::Duration,
 };
 
 use ctrlc::Error;
 use log::{error, info, Level};
 use smol::{future::race, Async};
 
-use crate::{http_handler::hadle_client, logger::setup_logger, storage::Storage};
+use crate::{http_handler::hadle_client, logger::setup_logger, mdb_backup_handler::{self, BackupHandler}, storage::Storage};
 
 #[derive(Debug)]
 pub struct MapperBuilder<'a> {
@@ -23,7 +23,7 @@ enum Signal {
 }
 
 pub struct Mapper {
-    quit_channel: (smol::channel::Sender<()>, smol::channel::Receiver<()>),
+    ctrlc_channel: (smol::channel::Sender<()>, smol::channel::Receiver<()>),
     password: Option<String>,
     socket_address: SocketAddr,
 }
@@ -49,14 +49,14 @@ impl Mapper {
 
         Ok(Mapper {
             password: mapper_params.password.map(|s| s.to_string()),
-            quit_channel: (ctrlc_tx, ctrlc_rx),
+            ctrlc_channel: (ctrlc_tx, ctrlc_rx),
             socket_address,
         })
     }
 
     pub fn start(&self) -> Result<(), Error> {
         ctrlc::set_handler({
-            let s = self.quit_channel.0.clone();
+            let s = self.ctrlc_channel.0.clone();
             move || {
                 info!("received termination signal, sending termination signal to event loop");
                 let _ = s.send_blocking(());
@@ -66,6 +66,9 @@ impl Mapper {
         let storage = Storage::default();
 
         smol::block_on(async {
+
+            BackupHandler::new(Duration::from_secs(60), "".to_string(), storage.clone()).start_backup().await;
+
             let listener = Async::<TcpListener>::bind(self.socket_address)
                 .expect("unable to start tcplistener");
 
@@ -73,7 +76,7 @@ impl Mapper {
 
             loop {
                 let signal = race(async { Signal::Listened(listener.accept().await) }, async {
-                    match self.quit_channel.1.recv().await {
+                    match self.ctrlc_channel.1.recv().await {
                         Ok(_) | Err(_) => Signal::Terminated,
                     }
                 })

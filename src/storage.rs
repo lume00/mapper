@@ -1,20 +1,24 @@
 use std::{
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc, time::Duration,
+    sync::Arc,
+    time::Duration,
 };
-
-use crossbeam_utils::CachePadded;
-use smol::lock::RwLock;
 
 use crate::{
     errors::TransactionError,
     record::Record,
     wrapped_record::{RacingResult, WrappedRecord},
 };
+use crossbeam_utils::CachePadded;
+use serde::{Deserialize, Serialize};
+use smol::lock::RwLock;
 
 #[derive(Debug, Clone)]
-pub struct Storage(pub(crate) Arc<Vec<CachePadded<RwLock<HashMap<String, WrappedRecord>>>>>);
+pub struct Storage(pub(crate) Arc<Vec<CachePadded<RwLock<Map>>>>);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Map(pub(crate) HashMap<String, WrappedRecord>);
 
 impl Default for Storage {
     fn default() -> Self {
@@ -36,21 +40,21 @@ impl Storage {
 
     pub async fn flush_all(&self) {
         for rwlock in self.0.iter() {
-            rwlock.write().await.clear();
+            rwlock.write().await.0.clear();
         }
     }
 
     pub async fn db_size(&self) -> usize {
         let mut tot_cap: usize = 0;
         for rwlock in self.0.iter() {
-            tot_cap += rwlock.read().await.capacity();
+            tot_cap += rwlock.read().await.0.capacity();
         }
         return tot_cap;
     }
 
     pub async fn get_record(&self, key: &str) -> Result<Record, TransactionError> {
         match self.0.get(self.hash_key(key)) {
-            Some(shard) => match shard.read().await.get(key) {
+            Some(shard) => match shard.read().await.0.get(key) {
                 Some(data) => Ok(data.record.clone()),
                 None => Err(TransactionError::RecordNotFound),
             },
@@ -67,9 +71,14 @@ impl Storage {
         match self.0.get(hash_index) {
             Some(shard) => {
                 let mut record_lock = shard.write().await;
-                match record_lock.get_mut(key) {
+                match record_lock.0.get_mut(key) {
                     Some(wrecord) => {
-                        wrecord.update_ttl_policy(new_ttl, self.clone(), hash_index, key.to_owned());
+                        wrecord.update_ttl_policy(
+                            new_ttl,
+                            self.clone(),
+                            hash_index,
+                            key.to_owned(),
+                        );
 
                         Ok(())
                     }
@@ -89,7 +98,7 @@ impl Storage {
         match self.0.get(shard_index) {
             Some(shard) => {
                 let mut locked_db = shard.write().await;
-                let maybe_prev = locked_db.insert(
+                let maybe_prev = locked_db.0.insert(
                     key.to_owned(),
                     WrappedRecord::new(self.clone(), shard_index, key, client_record),
                 );
@@ -108,7 +117,7 @@ impl Storage {
     pub async fn remove_record(&self, key: &String) -> Result<(), TransactionError> {
         match self.0.get(self.hash_key(key)) {
             Some(shard) => {
-                let maybe_prev = shard.write().await.remove(key);
+                let maybe_prev = shard.write().await.0.remove(key);
                 if let Some(prev) = maybe_prev {
                     if let Some(timer) = prev.detatched_task_ch {
                         let _ = timer.send(RacingResult::Cancelled);

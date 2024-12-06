@@ -7,6 +7,7 @@ mod http_handler;
 mod query_parser;
 mod errors;
 mod query_handler;
+mod mdb_backup_handler;
 
 use engine::{Mapper, MapperBuilder};
 

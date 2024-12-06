@@ -1,20 +1,20 @@
 use std::{fmt::Display, time::Duration};
 
 use log::debug;
+use serde::{Deserialize, Serialize};
 use smol::{
     channel::{Receiver, Sender},
     future::race,
     Timer,
 };
 
-use crate::{
-    record::Record,
-    storage::Storage,
-};
+use crate::{record::Record, storage::Storage};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WrappedRecord {
     pub record: Record,
+
+    #[serde(skip)]
     pub detatched_task_ch: Option<Sender<RacingResult>>,
 }
 
@@ -37,7 +37,7 @@ impl WrappedRecord {
             Some(ttl_policy) => {
                 let key: String = key.to_string();
                 let ttl = ttl_policy.ttl.clone();
-                let tc_s = create_ttl_channel(db, shard_index, key, ttl);
+                let tc_s = create_ttl_check_channel(db, shard_index, key, ttl);
 
                 WrappedRecord {
                     record,
@@ -51,7 +51,13 @@ impl WrappedRecord {
         }
     }
 
-    pub fn update_ttl_policy(&mut self, maybe_new_ttl: Option<Duration>, db: Storage, shard_index: usize, key: String) {
+    pub fn update_ttl_policy(
+        &mut self,
+        maybe_new_ttl: Option<Duration>,
+        db: Storage,
+        shard_index: usize,
+        key: String,
+    ) {
         match maybe_new_ttl {
             Some(new_ttl) => {
                 if let Some(detatched_task_ch) = &self.detatched_task_ch {
@@ -61,7 +67,8 @@ impl WrappedRecord {
                 self.record.update_ttl_policy(new_ttl);
 
                 //creating new ttl channel
-                self.detatched_task_ch = Some(create_ttl_channel(db, shard_index, key, new_ttl));
+                self.detatched_task_ch =
+                    Some(create_ttl_check_channel(db, shard_index, key, new_ttl));
             }
             None => {
                 //cancelling previous ttl
@@ -75,15 +82,19 @@ impl WrappedRecord {
     }
 }
 
-fn create_ttl_channel(db: Storage, shard_index: usize, key: String, ttl: Duration) -> Sender<RacingResult> {
+fn create_ttl_check_channel(
+    db: Storage,
+    shard_index: usize,
+    key: String,
+    ttl: Duration,
+) -> Sender<RacingResult> {
     let (tc_s, tc_r) = smol::channel::bounded::<RacingResult>(1);
 
-    let ttl_check = ttl_check_fn(db, shard_index, key, tc_r, ttl);
-    smol::spawn(ttl_check).detach();
+    smol::spawn(ttl_check(db, shard_index, key, tc_r, ttl)).detach();
     tc_s
 }
 
-async fn ttl_check_fn(
+async fn ttl_check(
     storage: Storage,
     shard_index: usize,
     key: String,
@@ -112,10 +123,10 @@ async fn ttl_check_fn(
             // timer has timed out
             RacingResult::Timout => {
                 let mut locked_table = shard.write().await;
-                if let Some(wrecord) = locked_table.get(&key) {
+                if let Some(wrecord) = locked_table.0.get(&key) {
                     if let Some(_) = &wrecord.record.ttl_policy {
                         debug!("timout occured, ttl is expired, removing key {}", key);
-                        let _prev = locked_table.remove(&key);
+                        let _prev = locked_table.0.remove(&key);
                     }
                 }
             }
