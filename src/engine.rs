@@ -1,13 +1,17 @@
 use std::{
     error, io,
-    net::{SocketAddr, TcpListener, TcpStream}, time::Duration,
+    net::{SocketAddr, TcpListener, TcpStream},
+    time::Duration,
 };
 
 use ctrlc::Error;
 use log::{error, info, Level};
 use smol::{future::race, Async};
 
-use crate::{http_handler::hadle_client, logger::setup_logger, mdb_backup_handler::{self, BackupHandler}, storage::Storage};
+use crate::{
+    backup_handler::BackupHandler, http_handler::hadle_client, logger::setup_logger,
+    storage::Storage,
+};
 
 #[derive(Debug)]
 pub struct MapperBuilder<'a> {
@@ -29,7 +33,6 @@ pub struct Mapper {
 }
 
 impl Mapper {
-
     pub fn new(mapper_params: MapperBuilder) -> Result<Self, Box<dyn error::Error>> {
         let logging_level = match mapper_params.logging_level {
             Some(logging_level) => Level::iter()
@@ -66,8 +69,9 @@ impl Mapper {
         let storage = Storage::default();
 
         smol::block_on(async {
-
-            BackupHandler::new(Duration::from_secs(60), "".to_string(), storage.clone()).start_backup().await;
+            BackupHandler::new(Duration::from_secs(30), ".".to_string(), storage.clone())
+                .recover_and_backup()
+                .await;
 
             let listener = Async::<TcpListener>::bind(self.socket_address)
                 .expect("unable to start tcplistener");

@@ -8,23 +8,23 @@ use std::{
 use crate::{
     errors::TransactionError,
     record::Record,
-    wrapped_record::{RacingResult, WrappedRecord},
+    wrapped_record::{TTLResult, WrappedRecord},
 };
 use crossbeam_utils::CachePadded;
 use serde::{Deserialize, Serialize};
 use smol::lock::RwLock;
 
 #[derive(Debug, Clone)]
-pub struct Storage(pub(crate) Arc<Vec<CachePadded<RwLock<Map>>>>);
+pub struct Storage(pub(crate) Arc<[CachePadded<RwLock<Shard>>; 128]>);
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct Map(pub(crate) HashMap<String, WrappedRecord>);
+pub struct Shard(pub(crate) HashMap<String, WrappedRecord>);
 
 impl Default for Storage {
     fn default() -> Self {
-        let mut sharded_storage = Vec::new();
-        sharded_storage.resize_with(50, Default::default);
-        Self(Arc::new(sharded_storage))
+        Self(Arc::new(
+            std::array::from_fn(|_| CachePadded::new(RwLock::new(Shard::default())))
+        ))
     }
 }
 
@@ -105,7 +105,7 @@ impl Storage {
 
                 if let Some(prev) = maybe_prev {
                     if let Some(timer) = prev.detatched_task_ch {
-                        let _ = timer.send(RacingResult::Cancelled);
+                        let _ = timer.send(TTLResult::Cancelled);
                     }
                 }
                 return Ok(());
@@ -120,7 +120,7 @@ impl Storage {
                 let maybe_prev = shard.write().await.0.remove(key);
                 if let Some(prev) = maybe_prev {
                     if let Some(timer) = prev.detatched_task_ch {
-                        let _ = timer.send(RacingResult::Cancelled);
+                        let _ = timer.send(TTLResult::Cancelled);
                     }
                 }
 

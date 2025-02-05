@@ -64,7 +64,7 @@ impl TTLPolicy {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct SerializableTTLPolicy {
     ttl_secs: u64,
     last_policy_update: u64,

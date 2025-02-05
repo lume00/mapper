@@ -15,17 +15,17 @@ pub struct WrappedRecord {
     pub record: Record,
 
     #[serde(skip)]
-    pub detatched_task_ch: Option<Sender<RacingResult>>,
+    pub detatched_task_ch: Option<Sender<TTLResult>>,
 }
 
 #[derive(Debug)]
-pub enum RacingResult {
+pub enum TTLResult {
     Timout,
     Closed,
     Cancelled,
 }
 
-impl Display for RacingResult {
+impl Display for TTLResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
     }
@@ -61,7 +61,7 @@ impl WrappedRecord {
         match maybe_new_ttl {
             Some(new_ttl) => {
                 if let Some(detatched_task_ch) = &self.detatched_task_ch {
-                    let _ = detatched_task_ch.send(RacingResult::Cancelled);
+                    let _ = detatched_task_ch.send(TTLResult::Cancelled);
                 }
                 //updating ttl
                 self.record.update_ttl_policy(new_ttl);
@@ -73,7 +73,7 @@ impl WrappedRecord {
             None => {
                 //cancelling previous ttl
                 if let Some(detatched_task_ch) = &self.detatched_task_ch {
-                    let _ = detatched_task_ch.send(RacingResult::Cancelled);
+                    let _ = detatched_task_ch.send(TTLResult::Cancelled);
                 }
 
                 self.record.remove_ttl_policy();
@@ -87,8 +87,8 @@ fn create_ttl_check_channel(
     shard_index: usize,
     key: String,
     ttl: Duration,
-) -> Sender<RacingResult> {
-    let (tc_s, tc_r) = smol::channel::bounded::<RacingResult>(1);
+) -> Sender<TTLResult> {
+    let (tc_s, tc_r) = smol::channel::bounded::<TTLResult>(1);
 
     smol::spawn(ttl_check(db, shard_index, key, tc_r, ttl)).detach();
     tc_s
@@ -98,7 +98,7 @@ async fn ttl_check(
     storage: Storage,
     shard_index: usize,
     key: String,
-    detatched_task_ch: Receiver<RacingResult>,
+    detatched_task_ch: Receiver<TTLResult>,
     ttl: Duration,
 ) {
     // waiting for 3 futures, the first that completes win:
@@ -108,12 +108,12 @@ async fn ttl_check(
         async {
             match detatched_task_ch.recv().await {
                 Ok(cancelled) => cancelled,
-                Err(_) => RacingResult::Closed,
+                Err(_) => TTLResult::Closed,
             }
         },
         async {
             Timer::after(ttl).await;
-            RacingResult::Timout
+            TTLResult::Timout
         },
     )
     .await;
@@ -121,7 +121,7 @@ async fn ttl_check(
     if let Some(shard) = storage.0.get(shard_index) {
         match racing_result {
             // timer has timed out
-            RacingResult::Timout => {
+            TTLResult::Timout => {
                 let mut locked_table = shard.write().await;
                 if let Some(wrecord) = locked_table.0.get(&key) {
                     if let Some(_) = &wrecord.record.ttl_policy {
@@ -131,9 +131,9 @@ async fn ttl_check(
                 }
             }
             // channel is cancelled
-            RacingResult::Cancelled => debug!("channel cancelled for key {}", key),
+            TTLResult::Cancelled => debug!("channel cancelled for key {}", key),
             //channel is closed due to record drop
-            RacingResult::Closed => debug!("channel closed for key {}", key),
+            TTLResult::Closed => debug!("channel closed for key {}", key),
         }
     }
 }
