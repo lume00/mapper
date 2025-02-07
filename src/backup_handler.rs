@@ -8,6 +8,7 @@ use smol::{
 use crate::storage::Storage;
 
 const MDB_FILE_NAME: &'static str = "mdb";
+const MDB_FILE_EXTENSION: &'static str = "txt";
 
 pub(crate) struct BackupHandler {
     interval: Duration,
@@ -43,7 +44,7 @@ impl BackupHandler {
                 }
             };
             let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("mpk") {
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(MDB_FILE_EXTENSION) {
                 let mut file = match File::open(&path).await {
                     Ok(file) => file,
                     Err(e) => {
@@ -57,7 +58,7 @@ impl BackupHandler {
                     continue;
                 }
                
-                match rmp_serde::from_slice(&buff[..]) {
+                match bincode::deserialize(&buff) {
                     Ok(deserialized_shard) => {
                         let shard_num: usize = path.file_stem().and_then(|s| s.to_str()).and_then(|s| s.split('_').last()).and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
                         if shard_num < storage_shard_len {
@@ -90,7 +91,7 @@ impl BackupHandler {
                 for i in 0..storage_shard_len {
                     let curr_shard = storage.0.get(i).unwrap();
 
-                    match rmp_serde::to_vec(&curr_shard.read().await.0) {
+                    match bincode::serialize(&curr_shard.read().await.0) {
                         Ok(ser_content) => {
                             if let Err(e) = write_backup(&path, ser_content, i).await {
                                 error!("{}", e);
@@ -111,7 +112,7 @@ impl BackupHandler {
 
 #[inline]
 fn get_mdb_shard(shard_num: usize) -> String {
-    format!("{}_{}.mpk", MDB_FILE_NAME, shard_num)
+    format!("{}_{}.{}", MDB_FILE_NAME, shard_num, MDB_FILE_EXTENSION)
 }
 
 async fn write_backup(path: &str, content: Vec<u8>, shard_num: usize) -> std::io::Result<()> {

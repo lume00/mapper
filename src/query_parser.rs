@@ -63,131 +63,128 @@ impl Query {
     }
 }
 
-fn put_api(path: &str, body: Vec<u8>) -> Result<Query, DeserializationError> {
+macro_rules! match_api {
+    ($path:expr, $pattern:expr, $query:expr) => {
+        if let Some(captures) = extract_wildcards($path, $pattern) {
+            return $query(captures);
+        }
+    };
+}
 
-    if let Some(set) = extract_wildcards(path, "/SET/*") {
-        if let Some(key) = set.get(0) {
-            return Ok(Query::Set {
+fn put_api(path: &str, body: Vec<u8>) -> Result<Query, DeserializationError> {
+    match_api!(path, "/SET/*", |captures: Vec<String>| {
+        captures.get(0).map_or(
+            Err(DeserializationError::UnparsableQuery),
+            |key| Ok(Query::Set {
                 key: key.clone(),
                 data: body,
-            });
-        } else {
-            return Err(DeserializationError::UnparsableQuery);
-        }
-    }
+            }),
+        )
+    });
 
-    if let Some(setex) = extract_wildcards(path, "/SETEX/*/*") {
-        if let (Some(key), Some(dur)) = (setex.get(0), setex.get(1)) {
-            return match parse_duration(dur.as_str()) {
+    match_api!(path, "/SETEX/*/*", |captures: Vec<String>| {
+        if let (Some(key), Some(dur)) = (captures.get(0), captures.get(1)) {
+            match parse_duration(dur.as_str()) {
                 Ok(dur) => Ok(Query::SetEx {
                     key: key.clone(),
                     data: body,
                     ttl: Duration::from(dur),
                 }),
                 Err(_) => Err(DeserializationError::UnparsableDuration),
-            };
+            }
         } else {
-            return Err(DeserializationError::UnparsableQuery);
+            Err(DeserializationError::UnparsableQuery)
         }
-    }
+    });
 
-    return Err(DeserializationError::QueryNotFound);
+    Err(DeserializationError::QueryNotFound)
 }
 
 fn get_api(path: &str) -> Result<Query, DeserializationError> {
+    match_api!(path, "/GET/*", |captures: Vec<String>| {
+        captures.get(0).map_or(
+            Err(DeserializationError::UnparsableQuery),
+            |el| Ok(Query::Get { key: el.clone() }),
+        )
+    });
 
-    if let Some(get) = extract_wildcards(path, "/GET/*") {
-        return match get.get(0) {
-            Some(el) => Ok(Query::Get { key: el.clone() }),
-            None => Err(DeserializationError::UnparsableQuery),
-        };
-    }
-
-    if let Some(set) = extract_wildcards(path, "/SET/*/*") {
-        if let (Some(key), Some(val)) = (set.get(0), set.get(1)) {
-            return Ok(Query::Set {
+    match_api!(path, "/SET/*/*", |captures: Vec<String>| {
+        if let (Some(key), Some(val)) = (captures.get(0), captures.get(1)) {
+            Ok(Query::Set {
                 key: key.clone(),
                 data: val.as_bytes().to_vec(),
-            });
+            })
         } else {
-            return Err(DeserializationError::UnparsableQuery);
+            Err(DeserializationError::UnparsableQuery)
         }
-    }
+    });
 
-    if let Some(setex) = extract_wildcards(path, "/SETEX/*/*/*") {
-        if let (Some(key), Some(val), Some(dur)) = (setex.get(0), setex.get(1), setex.get(2)) {
-            return match parse_duration(dur.as_str()) {
+    match_api!(path, "/SETEX/*/*/*", |captures: Vec<String>| {
+        if let (Some(key), Some(val), Some(dur)) = (captures.get(0), captures.get(1), captures.get(2)) {
+            match parse_duration(dur.as_str()) {
                 Ok(dur) => Ok(Query::SetEx {
                     key: key.clone(),
                     data: val.as_bytes().to_vec(),
                     ttl: Duration::from(dur),
                 }),
                 Err(_) => Err(DeserializationError::UnparsableDuration),
-            };
+            }
         } else {
-            return Err(DeserializationError::UnparsableQuery);
+            Err(DeserializationError::UnparsableQuery)
         }
-    }
+    });
 
-    if let Some(del) = extract_wildcards(path, "/DEL/*") {
-        return match del.get(0) {
-            Some(el) => Ok(Query::Del { key: el.clone() }),
-            None => Err(DeserializationError::UnparsableQuery),
-        };
-    }
+    match_api!(path, "/DEL/*", |captures: Vec<String>| {
+        captures.get(0).map_or(
+            Err(DeserializationError::UnparsableQuery),
+            |el| Ok(Query::Del { key: el.clone() }),
+        )
+    });
 
-    if let Some(exists) = extract_wildcards(path, "/EXISTS/*") {
-        return match exists.get(0) {
-            Some(el) => Ok(Query::Exists { key: el.clone() }),
-            None => Err(DeserializationError::UnparsableQuery),
-        };
-    }
+    match_api!(path, "/EXISTS/*", |captures: Vec<String>| {
+        captures.get(0).map_or(
+            Err(DeserializationError::UnparsableQuery),
+            |el| Ok(Query::Exists { key: el.clone() }),
+        )
+    });
 
-    if let Some(expire) = extract_wildcards(path, "/EXPIRE/*/*") {
-        if let (Some(key), Some(dur)) = (expire.get(0), expire.get(1)) {
-            return match parse_duration(dur.as_str()) {
+    match_api!(path, "/EXPIRE/*/*", |captures: Vec<String>| {
+        if let (Some(key), Some(dur)) = (captures.get(0), captures.get(1)) {
+            match parse_duration(dur.as_str()) {
                 Ok(dur) => Ok(Query::Expire {
                     key: key.clone(),
                     ttl: Duration::from(dur),
                 }),
                 Err(_) => Err(DeserializationError::UnparsableDuration),
-            };
+            }
         } else {
-            return Err(DeserializationError::UnparsableQuery);
+            Err(DeserializationError::UnparsableQuery)
         }
-    }
+    });
 
-    if let Some(ttl) = extract_wildcards(path, "/TTL/*") {
-        return match ttl.get(0) {
-            Some(el) => Ok(Query::Ttl { key: el.clone() }),
-            None => Err(DeserializationError::UnparsableQuery),
-        };
-    }
+    match_api!(path, "/TTL/*", |captures: Vec<String>| {
+        captures.get(0).map_or(
+            Err(DeserializationError::UnparsableQuery),
+            |el| Ok(Query::Ttl { key: el.clone() }),
+        )
+    });
 
-    if let Some(ttl) = extract_wildcards(path, "/PERSIST/*") {
-        return match ttl.get(0) {
-            Some(el) => Ok(Query::Persist { key: el.clone() }),
-            None => Err(DeserializationError::UnparsableQuery),
-        };
-    }
+    match_api!(path, "/PERSIST/*", |captures: Vec<String>| {
+        captures.get(0).map_or(
+            Err(DeserializationError::UnparsableQuery),
+            |el| Ok(Query::Persist { key: el.clone() }),
+        )
+    });
 
-    if let Some(_) = extract_wildcards(path, "/INFO") {
-        return Ok(Query::Info);
-    }
+    match_api!(path, "/INFO", |_| Ok(Query::Info));
 
-    if let Some(_) = extract_wildcards(path, "/FLUSHALL") {
-        return Ok(Query::FlushAll);
-    }
+    match_api!(path, "/FLUSHALL", |_| Ok(Query::FlushAll));
 
-    if let Some(_) = extract_wildcards(path, "/DBSIZE") {
-        return Ok(Query::DbSize);
-    }
+    match_api!(path, "/DBSIZE", |_| Ok(Query::DbSize));
 
-    if let Some(_) = extract_wildcards(path, "/PING") {
-        return Ok(Query::Ping);
-    }
+    match_api!(path, "/PING", |_| Ok(Query::Ping));
 
-    return Err(DeserializationError::QueryNotFound);
+    Err(DeserializationError::QueryNotFound)
 }
 
 fn extract_wildcards(url: &str, pattern: &str) -> Option<Vec<String>> {

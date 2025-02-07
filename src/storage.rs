@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use smol::lock::RwLock;
 
 #[derive(Debug, Clone)]
-pub struct Storage(pub(crate) Arc<[CachePadded<RwLock<Shard>>; 128]>);
+pub struct Storage(pub(crate) Arc<[CachePadded<RwLock<Shard>>; 4]>);
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Shard(pub(crate) HashMap<String, WrappedRecord>);
