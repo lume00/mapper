@@ -11,8 +11,8 @@ impl error::Error for Errors {}
 impl fmt::Display for Errors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Errors::TransactionError(te) => te.fmt(f),
-            Errors::DeserializationError(de) => de.fmt(f),
+            Errors::TransactionError(err) => err.fmt(f),
+            Errors::DeserializationError(err) => err.fmt(f),
             // Errors::HttpError => write!(f, "http error"),
         }
     }

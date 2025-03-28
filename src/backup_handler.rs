@@ -26,7 +26,7 @@ impl BackupHandler {
     }
 
     async fn recover(&self, storage_shard_len: usize) {
-        let shard_dir_path = format!("{}/shards", self.path);
+        let shard_dir_path = format!("{}/backup", self.path);
         let mut entries = match fs::read_dir(&shard_dir_path).await {
             Ok(entries) => entries,
             Err(e) => {
@@ -118,7 +118,7 @@ fn get_mdb_shard(shard_num: usize) -> String {
 async fn write_backup(path: &str, content: Vec<u8>, shard_num: usize) -> std::io::Result<()> {
     println!("{}", String::from_utf8_lossy(&content[..]));
     // Create the directory for storing shard files if it doesn't exist
-    let shard_dir_path = format!("{}/shards", path);
+    let shard_dir_path = format!("{}/backup", path);
     create_dir_all(&shard_dir_path).await?;
  
     // Create or overwrite the MDB file for the shard

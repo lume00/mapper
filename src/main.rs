@@ -1,4 +1,4 @@
-mod engine;
+mod core;
 mod logger;
 mod record;
 mod storage;
@@ -9,16 +9,17 @@ mod errors;
 mod query_handler;
 mod backup_handler;
 
-use engine::{Mapper, MapperBuilder};
+use core::{Mapper, MapperBuilder};
 
 fn main() {
     Mapper::new(MapperBuilder {
         password: None,
-        address: None,
+        address: Some("127.0.0.1:6379"),
         async_loggin: Some(false),
-        logging_level: Some("debug")
+        logging_level: Some("debug"),
+        backup_interval: None,
+        backup_path: None,
+        cluster_nodes: None,
     })
-    .unwrap()
-    .start()
-    .unwrap();
+    .unwrap().start().unwrap();
 }

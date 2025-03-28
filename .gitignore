@@ -2,7 +2,7 @@
 # will have compiled files and executables
 debug/
 target/
-shards
+backup
 
 # VSCode
 .vscode/

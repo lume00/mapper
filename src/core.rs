@@ -9,9 +9,9 @@ use log::{error, info, Level};
 use smol::{future::race, Async};
 
 use crate::{
-    backup_handler::BackupHandler, http_handler::hadle_client, logger::setup_logger,
-    storage::Storage,
+    backup_handler::BackupHandler, http_handler::hadle_client, logger::setup_logger, storage::Storage,
 };
+
 
 #[derive(Debug)]
 pub struct MapperBuilder<'a> {
@@ -19,28 +19,30 @@ pub struct MapperBuilder<'a> {
     pub(crate) address: Option<&'a str>,
     pub(crate) async_loggin: Option<bool>,
     pub(crate) logging_level: Option<&'a str>,
+    pub(crate) backup_interval: Option<Duration>,
+    pub(crate) backup_path: Option<&'a str>,
+    pub(crate) cluster_nodes: Option<Vec<(&'a str, Option<&'a str>)>>,
 }
 
 enum Signal {
-    Terminated,
-    Listened(io::Result<(Async<TcpStream>, SocketAddr)>),
+    Quit,
+    Listen(io::Result<(Async<TcpStream>, SocketAddr)>),
 }
 
 pub struct Mapper {
     ctrlc_channel: (smol::channel::Sender<()>, smol::channel::Receiver<()>),
     password: Option<String>,
     socket_address: SocketAddr,
+    backup_interval: Duration,
+    backup_path: String,
 }
 
 impl Mapper {
     pub fn new(mapper_params: MapperBuilder) -> Result<Self, Box<dyn error::Error>> {
-        let logging_level = match mapper_params.logging_level {
-            Some(logging_level) => Level::iter()
-                .find(|e| -> bool { e.as_str().to_lowercase() == logging_level.to_lowercase() })
-                .unwrap_or(Level::Info),
-            None => Level::Info,
-        };
-        setup_logger(mapper_params.async_loggin.unwrap_or(false), logging_level);
+        setup_logger(
+            mapper_params.async_loggin.unwrap_or(false),
+            grab_logger_level(&mapper_params),
+        );
 
         let address = mapper_params.address.unwrap_or("127.0.0.1:6379");
 
@@ -54,6 +56,8 @@ impl Mapper {
             password: mapper_params.password.map(|s| s.to_string()),
             ctrlc_channel: (ctrlc_tx, ctrlc_rx),
             socket_address,
+            backup_interval: mapper_params.backup_interval.unwrap_or( Duration::from_secs(30)),
+            backup_path: mapper_params.backup_path.unwrap_or( ".").to_string(),
         })
     }
 
@@ -69,7 +73,7 @@ impl Mapper {
         let storage = Storage::default();
 
         smol::block_on(async {
-            BackupHandler::new(Duration::from_secs(30), ".".to_string(), storage.clone())
+            BackupHandler::new(self.backup_interval, self.backup_path.clone(), storage.clone())
                 .recover_and_backup()
                 .await;
 
@@ -79,21 +83,21 @@ impl Mapper {
             info!("listening on {}", self.socket_address);
 
             loop {
-                let signal = race(async { Signal::Listened(listener.accept().await) }, async {
+                let signal = race(async { Signal::Listen(listener.accept().await) }, async {
                     match self.ctrlc_channel.1.recv().await {
-                        Ok(_) | Err(_) => Signal::Terminated,
+                        Ok(_) | Err(_) => Signal::Quit
                     }
                 })
                 .await;
 
                 match signal {
-                    Signal::Terminated => break,
-                    Signal::Listened(maybe_stream) => match maybe_stream {
+                    Signal::Quit => break,
+                    Signal::Listen(maybe_stream) => match maybe_stream {
                         Ok(stream) => smol::spawn(hadle_client(
                             stream.0,
                             stream.1,
                             storage.clone(),
-                            self.password.clone(),
+                            self.password.clone()
                         ))
                         .detach(),
                         Err(e) => error!("async tcpstream error: {}", e),
@@ -104,4 +108,14 @@ impl Mapper {
 
         Ok(())
     }
+}
+
+fn grab_logger_level(mapper_params: &MapperBuilder<'_>) -> Level {
+    let logging_level = match mapper_params.logging_level {
+        Some(logging_level) => Level::iter()
+            .find(|e| -> bool { e.as_str().to_lowercase() == logging_level.to_lowercase() })
+            .unwrap_or(Level::Info),
+        None => Level::Info,
+    };
+    logging_level
 }
