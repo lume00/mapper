@@ -7,8 +7,9 @@ use smol::{
 
 use crate::storage::Storage;
 
-const MDB_FILE_NAME: &'static str = "mdb";
-const MDB_FILE_EXTENSION: &'static str = "txt";
+const MDB_FILE_NAME: &'static str = "shard";
+const MDB_FILE_EXTENSION: &'static str = "mdb";
+const MDB_BACKUP_DIR: &'static str = "backup";
 
 pub(crate) struct BackupHandler {
     interval: Duration,
@@ -26,7 +27,7 @@ impl BackupHandler {
     }
 
     async fn recover(&self, storage_shard_len: usize) {
-        let shard_dir_path = format!("{}/backup", self.path);
+        let shard_dir_path = format!("{}/{}", self.path, MDB_BACKUP_DIR);
         let mut entries = match fs::read_dir(&shard_dir_path).await {
             Ok(entries) => entries,
             Err(e) => {
@@ -118,7 +119,7 @@ fn get_mdb_shard(shard_num: usize) -> String {
 async fn write_backup(path: &str, content: Vec<u8>, shard_num: usize) -> std::io::Result<()> {
     println!("{}", String::from_utf8_lossy(&content[..]));
     // Create the directory for storing shard files if it doesn't exist
-    let shard_dir_path = format!("{}/backup", path);
+    let shard_dir_path = format!("{}/{}", path, MDB_BACKUP_DIR);
     create_dir_all(&shard_dir_path).await?;
  
     // Create or overwrite the MDB file for the shard

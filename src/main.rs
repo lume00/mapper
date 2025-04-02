@@ -11,15 +11,11 @@ mod backup_handler;
 
 use core::{Mapper, MapperBuilder};
 
+use clap::Parser;
+
 fn main() {
-    Mapper::new(MapperBuilder {
-        password: None,
-        address: Some("127.0.0.1:6379"),
-        async_loggin: Some(false),
-        logging_level: Some("debug"),
-        backup_interval: None,
-        backup_path: None,
-        cluster_nodes: None,
-    })
-    .unwrap().start().unwrap();
+    Mapper::new(MapperBuilder::parse())
+        .unwrap()
+        .start()
+        .unwrap();
 }

@@ -46,6 +46,7 @@ pub fn setup_logger(enable_async_logging: bool, max_level: Level) {
             let (s, r) = channel::<String>();
             thread::spawn(move || loop {
                 match r.recv() {
+                    //todo implement log rotation logic
                     Ok(msg) => println!("{}", msg),
                     Err(_) => break,
                 }
