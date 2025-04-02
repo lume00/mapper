@@ -1,6 +1,6 @@
 use log::error;
 
-use crate::{errors::{self}, query_parser::Query, record::Record, storage::Storage};
+use crate::{errors::{self}, http_query_parser::Query, record::Record, storage::Storage};
 
 fn handle_ok_result<T, F>(result: Result<T, errors::TransactionError>, handler: F) -> Result<String, errors::Errors>
 where

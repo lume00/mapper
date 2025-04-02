@@ -4,7 +4,7 @@ use http_types::{Method, Request, Response, StatusCode};
 use log::error;
 use smol::Async;
 
-use crate::{query_handler, query_parser::Query, storage::Storage};
+use crate::{query_handler, http_query_parser::Query, storage::Storage};
 
 const BEARIER_TOKEN: &'static str = "X-API-Key";
 
