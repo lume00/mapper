@@ -4,7 +4,7 @@ mod record;
 mod storage;
 mod wrapped_record;
 mod http_handler;
-mod query_parser;
+mod http_query_parser;
 mod errors;
 mod query_handler;
 mod backup_handler;
