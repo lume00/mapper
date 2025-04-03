@@ -1,6 +1,6 @@
 # Mapper
 
-Mapper is a distributed key-value store written in Rust. It provides efficient storage and retrieval of records with support for TTL (time-to-live) policies, sharding, and asynchronous operations.
+Mapper is a distributed key-value store written in Rust. It provides efficient storage and retrieval of records with support for TTL (time-to-live) policies, sharding, asynchronous operations, and periodic backups.
 
 ## Features
 
@@ -8,6 +8,7 @@ Mapper is a distributed key-value store written in Rust. It provides efficient s
 - **TTL Support**: Records can have an optional time-to-live policy.
 - **Asynchronous Operations**: Built using `smol` for async operations.
 - **Customizable**: Configurable via CLI arguments.
+- **Backup Functionality**: Periodically creates backups of the database.
 
 ## Installation
 
@@ -44,7 +45,7 @@ The following HTTP API endpoints are supported:
 | Method | URL                  | Description                                                                 |
 |--------|----------------------|-----------------------------------------------------------------------------|
 | GET    | `/GET/{key}`         | Retrieve the value of a record by its key.                                  |
-| GET    | `/SET/{key}/{value}`         | Set a record with the specified key and value.                      |
+| GET    | `/SET/{key}/{value}` | Set a record with the specified key and value.                              |
 | GET    | `/SETEX/{key}/{ttl}/{value}` | Set a record with a TTL (time-to-live) in seconds.                  |
 | PUT    | `/SET/{key}`         | Set a record with the specified key and value (value in request body).      |
 | PUT    | `/SETEX/{key}/{ttl}` | Set a record with a TTL (time-to-live) in seconds (value in request body).  |
@@ -97,4 +98,3 @@ To interact with the REST API, you can use tools like `curl`. For example:
   ```bash
   curl -X PUT http://127.0.0.1:6379/DEL/mykey
   ```
-  
