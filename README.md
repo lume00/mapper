@@ -97,3 +97,4 @@ To interact with the REST API, you can use tools like `curl`. For example:
   ```bash
   curl -X PUT http://127.0.0.1:6379/DEL/mykey
   ```
+  
