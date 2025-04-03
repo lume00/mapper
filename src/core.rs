@@ -18,25 +18,25 @@ use crate::{
 #[command(name = "Mapper")]
 #[command(about = "A simple and concurrent in memory database", long_about = None)]
 pub struct MapperBuilder {
-    #[arg(short, long, help = "Api key for authentication")]
+    #[arg(long, help = "Api key for authentication")]
     pub(crate) api_key: Option<String>,
 
-    #[arg(short, long, help = "Socket address to bind", default_value = "127.0.0.1:6379")]
+    #[arg(long, help = "Socket address to bind", default_value = "127.0.0.1:6379")]
     pub(crate) address: String,
 
-    #[arg(short = 'A', long, help = "Enable asynchronous logging", default_value_t = false, hide = true)]
+    #[arg(long, help = "Enable asynchronous logging", default_value_t = false, hide = true)]
     pub(crate) async_logging: bool,
 
-    #[arg(short = 'L', long, help = "Logging level (e.g., info, debug, error)", default_value = "info")]
+    #[arg(long, help = "Logging level (e.g., info, debug, error)", default_value = "info")]
     pub(crate) logging_level: String,
 
-    #[arg(short, long, help = "Enable backup functionality", default_value_t = false)]
+    #[arg(long, help = "Enable backup functionality", default_value_t = false)]
     pub(crate) backup: bool,
 
-    #[arg(short = 'I', long, help = "Backup interval in seconds", default_value_t = 60u64)]
+    #[arg(long, help = "Backup interval in seconds", default_value_t = 60u64)]
     pub(crate) backup_interval: u64,
 
-    #[arg(short = 'P', long, help = "Path for backup files", default_value = ".")]
+    #[arg(long, help = "Path for backup files", default_value = ".")]
     pub(crate) backup_path: String,
 }
 

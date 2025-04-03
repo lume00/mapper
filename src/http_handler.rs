@@ -6,7 +6,7 @@ use smol::Async;
 
 use crate::{query_handler, http_query_parser::Query, storage::Storage};
 
-const BEARIER_TOKEN: &'static str = "X-API-Key";
+const API_KEY: &'static str = "X-API-Key";
 
 pub(crate) async fn hadle_client(
     stream: Async<TcpStream>,
@@ -30,7 +30,7 @@ async fn handle_http_request(
     maybe_api_key: Option<String>,
 ) -> http_types::Result<Response> {
     if let Some(password) = maybe_api_key {
-        match req.header(BEARIER_TOKEN) {
+        match req.header(API_KEY) {
             Some(password_from_header) => {
                 if password_from_header != password.as_str() {
                     return Ok(Response::new(StatusCode::Forbidden));
@@ -41,7 +41,7 @@ async fn handle_http_request(
     }
 
     match req.method() {
-        Method::Get | Method::Put => match Query::try_from(req.clone()).await {
+        Method::Get | Method::Put => match Query::try_from(req).await {
             Ok(query) => {
                 Ok(match query_handler::handle_query(query, storage).await {
                     Ok(query_data) => {
