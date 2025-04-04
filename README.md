@@ -4,11 +4,11 @@ Mapper is a distributed key-value store written in Rust. It provides efficient s
 
 ## Features
 
-- **Sharding**: Data is distributed across multiple shards for scalability.
+- **Sharding**: Data is distributed across multiple shards.
 - **TTL Support**: Records can have an optional time-to-live policy.
-- **Asynchronous Operations**: Built using `smol` for async operations.
+- **Asynchronous Operations**: Built using `smol`.
 - **Customizable**: Configurable via CLI arguments.
-- **Backup Functionality**: Periodically creates backups of the database.
+- **Backup Functionality**: Periodically creates backups.
 
 ## Installation
 
@@ -67,7 +67,7 @@ To start the server with a custom configuration:
 ./mapper --address 0.0.0.0:8080 --logging-level debug --backup-path /data/backups --backup-interval 60
 ```
 
-To interact with the REST API, you can use tools like `curl`. For example:
+To interact with the API, you can use tools like `curl`. For example:
 
 - Set a record:
 
