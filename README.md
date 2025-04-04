@@ -1,6 +1,6 @@
 # Mapper
 
-Mapper is a distributed key-value store written in Rust. It provides efficient storage and retrieval of records with support for TTL (time-to-live) policies, sharding, asynchronous operations, and periodic backups.
+Mapper is a distributed key-value store written in Rust, for now it is a fully working proof of concept. It provides efficient storage and retrieval of records with support for TTL (time-to-live) policies, sharding, asynchronous operations, and periodic backups.
 
 ## Features
 
@@ -34,7 +34,7 @@ Run the application with the following command:
 | `--address`         | Address to bind the server               | `127.0.0.1:6379`      |
 | `--password`        | Password for authentication              | None                  |
 | `--logging-level`   | Logging level (e.g., `info`, `debug`)    | `info`                |
-| `--backup-interval` | Backup interval in seconds               | `30`                  |
+| `--backup-interval` | Backup interval in seconds               | `60`                  |
 | `--backup-path`     | Path for backups                         | `.`                   |
 | `--backup`          | Enables backup functionality             | `false`               |
 
