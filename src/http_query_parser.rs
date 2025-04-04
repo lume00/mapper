@@ -109,34 +109,6 @@ fn get_api(path: &str) -> Result<Query, DeserializationError> {
             })
     });
 
-    match_api!(path, "/SET/*/*", |captures: Vec<String>| {
-        if let (Some(key), Some(val)) = (captures.get(0), captures.get(1)) {
-            Ok(Query::Set {
-                key: key.clone(),
-                data: val.as_bytes().to_vec(),
-            })
-        } else {
-            Err(DeserializationError::UnparsableQuery)
-        }
-    });
-
-    match_api!(path, "/SETEX/*/*/*", |captures: Vec<String>| {
-        if let (Some(key), Some(val), Some(dur)) =
-            (captures.get(0), captures.get(1), captures.get(2))
-        {
-            match parse_duration(dur.as_str()) {
-                Ok(dur) => Ok(Query::SetEx {
-                    key: key.clone(),
-                    data: val.as_bytes().to_vec(),
-                    ttl: Duration::from(dur),
-                }),
-                Err(_) => Err(DeserializationError::UnparsableDuration),
-            }
-        } else {
-            Err(DeserializationError::UnparsableQuery)
-        }
-    });
-
     match_api!(path, "/DEL/*", |captures: Vec<String>| {
         captures
             .get(0)

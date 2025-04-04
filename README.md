@@ -45,8 +45,6 @@ The following HTTP API endpoints are supported:
 | Method | URL                  | Description                                                                 |
 |--------|----------------------|-----------------------------------------------------------------------------|
 | GET    | `/GET/{key}`         | Retrieve the value of a record by its key.                                  |
-| GET    | `/SET/{key}/{value}` | Set a record with the specified key and value.                              |
-| GET    | `/SETEX/{key}/{ttl}/{value}` | Set a record with a TTL (time-to-live) in seconds.                  |
 | PUT    | `/SET/{key}`         | Set a record with the specified key and value (value in request body).      |
 | PUT    | `/SETEX/{key}/{ttl}` | Set a record with a TTL (time-to-live) in seconds (value in request body).  |
 | GET    | `/DEL/{key}`         | Delete a record by its key.                                                 |
