@@ -98,3 +98,9 @@ To interact with the API, you can use tools like `curl`. For example:
   ```bash
   curl -X PUT http://127.0.0.1:6379/DEL/mykey
   ```
+
+## TODO
+
+- SSL support
+- AOF (Append Only File) logs
+- Active/Active cluster or Active/Passive cluster
