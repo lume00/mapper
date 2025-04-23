@@ -33,7 +33,7 @@ pub struct MapperBuilder {
     #[arg(long, help = "Enable backup functionality", default_value_t = true)]
     pub(crate) backup: bool,
 
-    #[arg(long, help = "Backup interval in seconds", default_value_t = 30u64)]
+    #[arg(long, help = "Backup interval in seconds", default_value_t = 240u64)]
     pub(crate) backup_interval: u64,
 
     #[arg(long, help = "Path for backup files", default_value = ".")]

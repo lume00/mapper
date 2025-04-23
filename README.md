@@ -34,7 +34,7 @@ Run the application with the following command:
 | `--address`         | Address to bind the server               | `127.0.0.1:6379`      |
 | `--password`        | Password for authentication              | None                  |
 | `--logging-level`   | Logging level (e.g., `info`, `debug`)    | `info`                |
-| `--backup-interval` | Backup interval in seconds               | `60`                  |
+| `--backup-interval` | Backup interval in seconds               | `240`                  |
 | `--backup-path`     | Path for backups                         | `.`                   |
 | `--backup`          | Enables backup functionality             | `false`               |
 
